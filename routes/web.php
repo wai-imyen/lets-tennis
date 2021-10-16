@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LineBotController;
+use App\Http\Controllers\SportradarTennisController;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,3 +22,7 @@ Route::get('/', function () {
 
 // Route::post('/callback', 'App\Http\Controllers\LineController@webhook');
 Route::post('/callback', [LineBotController::class, 'webhook']);
+
+Route::get('/updateCompetitor', [SportradarTennisController::class, 'updateCompetitor']);
+
+Route::get('/test', [LineBotController::class, 'test']);

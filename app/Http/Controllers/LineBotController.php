@@ -9,6 +9,7 @@ use LINE\LINEBot\Event\MessageEvent;
 use LINE\LINEBot\Event\PostbackEvent;
 use LINE\LINEBot\HTTPClient\CurlHTTPClient;
 use App\Services\LineBotService;
+use App\Services\SportradarTennisService;
 
 class LineBotController extends Controller
 {
@@ -17,13 +18,14 @@ class LineBotController extends Controller
     private $channel_access_token;
     private $lineBotService;
 
-    public function __construct(LineBotService $lineBotService)
+    public function __construct(LineBotService $lineBotService, SportradarTennisService $sportradarTennisService)
     {
         $this->channel_access_token = env('LINE_BOT_CHANNEL_ACCESS_TOKEN');
         $this->channel_secret = env('LINE_BOT_CHANNEL_SECRET');
         $this->client = new CurlHTTPClient($this->channel_access_token);
         $this->bot = new LINEBot($this->client, ['channelSecret' => $this->channel_secret]);
         $this->lineBotService = $lineBotService;
+        $this->sportradarTennisService = $sportradarTennisService;
     }
 
     /**
@@ -117,7 +119,28 @@ class LineBotController extends Controller
                             foreach($targets as $target){
                                 $bot->replyMessage($replyToken, $target);
                             }
-                        }else{
+                        }elseif(strpos(strtoupper($text), 'RECENT-') !== false){
+                            // 取得查詢ID
+                            $explodes = explode('-', $text);
+                            $competitorId = (isset($explodes[1])) ? $explodes[1] : '';
+                            // 取得該選手近期賽事資料
+                            $results = $this->sportradarTennisService->getCompetitorSummaries($competitorId);
+                            
+                            // 訊息內容
+                            $message = '';
+                            foreach($results as $result){
+                                $message .= date('Y-m-d', strtotime($result['start_time'])) . PHP_EOL;
+                                $message .= $result['event'] . PHP_EOL;
+                                $message .= $result['competitors'][0]['name'] . ' V.S ' . $result['competitors'][1]['name'] . PHP_EOL;
+                                $message .= $result['competitors'][0]['score'] . ' : ' . $result['competitors'][1]['score'] . PHP_EOL;
+                                if($result['result']){
+                                    $message .= $result['result'] . PHP_EOL;
+                                }
+                                $message .= '----------------------'. PHP_EOL;
+                            }
+                            $bot->replyText($replyToken, $message);
+                        }
+                        else{
                             // 回覆用戶文字訊息
                             $bot->replyText($replyToken, 'Hello world!');
                         }
@@ -151,5 +174,10 @@ class LineBotController extends Controller
                 // $bot->replyText($replyToken, $postbackData);
             }
         }
+    }
+
+    public function test(Request $request, LineBotService $lineBotService)
+    {
+        
     }
 }
