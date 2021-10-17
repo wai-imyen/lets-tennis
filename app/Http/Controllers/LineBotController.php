@@ -11,6 +11,7 @@ use LINE\LINEBot\HTTPClient\CurlHTTPClient;
 use App\Services\LineBotService;
 use App\Services\SportradarTennisService;
 use App\Models\Competitor;
+use App\Repositories\UserRepository;
 
 class LineBotController extends Controller
 {
@@ -18,15 +19,18 @@ class LineBotController extends Controller
     private $bot;
     private $channel_access_token;
     private $lineBotService;
+    private $userRepository;
 
-    public function __construct(LineBotService $lineBotService, SportradarTennisService $sportradarTennisService)
+    public function __construct(LineBotService $lineBotService, SportradarTennisService $sportradarTennisService, UserRepository $userRepository)
     {
         $this->channel_access_token = env('LINE_BOT_CHANNEL_ACCESS_TOKEN');
         $this->channel_secret = env('LINE_BOT_CHANNEL_SECRET');
         $this->client = new CurlHTTPClient($this->channel_access_token);
         $this->bot = new LINEBot($this->client, ['channelSecret' => $this->channel_secret]);
+        
         $this->lineBotService = $lineBotService;
         $this->sportradarTennisService = $sportradarTennisService;
+        $this->userRepository = $userRepository;
     }
 
     /**
@@ -36,7 +40,7 @@ class LineBotController extends Controller
 	 *
 	 * return 
 	 */
-    public function webhook(Request $request, LineBotService $lineBotService)
+    public function webhook(Request $request)
     {
         $bot = $this->bot;
         $signature = $request->header(\LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE);
@@ -53,6 +57,19 @@ class LineBotController extends Controller
         foreach($events as $event){
             // 取得用戶 replyToken
             $replyToken = $event->getReplyToken();
+            // 取得用戶 userId
+            $userId = $event->getUserId();
+            // 取得用戶資料
+            $res = $bot->getProfile($userId);
+            if ($res->isSucceeded()) {
+                $profile = $res->getJSONDecodedBody();
+                $displayName = $profile['displayName'];
+            }else{
+                $displayName = 'User';
+            }
+            
+            // 建立用戶至資料庫
+            $this->userRepository->addLineUser($displayName, $userId);
 
             // 接收訊息事件
             if ($event instanceof MessageEvent){
@@ -170,7 +187,7 @@ class LineBotController extends Controller
         }
     }
 
-    public function test(Request $request, LineBotService $lineBotService)
+    public function test(Request $request)
     {
         
     }
