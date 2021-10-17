@@ -10,6 +10,7 @@ use LINE\LINEBot\Event\PostbackEvent;
 use LINE\LINEBot\HTTPClient\CurlHTTPClient;
 use App\Services\LineBotService;
 use App\Services\SportradarTennisService;
+use App\Models\Competitor;
 
 class LineBotController extends Controller
 {
@@ -83,64 +84,33 @@ class LineBotController extends Controller
                             foreach($targets as $target){
                                 $bot->replyMessage($replyToken, $target);
                             }
-                        } elseif(strtoupper($text) == 'WTA'){
-                            $data[] = array(
-                                'title' => 'Halep',
-                                'text' => 'No.1',
-                                'imagePath' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/62ecc4f9-a397-4c6f-9c8c-cea093c5ee9c/WzQOhOCP.png?height=720',
-                                'options' => array(
-                                    array(
-                                        'label' => '查看資訊',
-                                        'data' => 'action=info&playerId=1',
+                        } elseif(strtoupper($text) == 'WTA' || strtoupper($text) == 'ATP'){
+                            $type = (strtoupper($text) == 'WTA') ? 'women' : 'men';
+                            $competiors = Competitor::query()->where('gender','=', $type)->orderBy('rank', 'asc')->limit(10)->get();
+                            foreach($competiors as $competior){
+                                $imagePath = ($competior['image']) ? $competior['image'] : 'https://apt.co.zw/wp-content/uploads/2016/12/apt-avatar.jpg';
+                                $data[] = array(
+                                    'title' => $competior['name'],
+                                    'text' => 'No.'.$competior['rank'],
+                                    'imagePath' => $imagePath,
+                                    'options' => array(
+                                        array(
+                                            'label' => '近期賽事',
+                                            'data' => 'action=summary&competitorId=' . $competior['urn_competitor'],
+                                        ),
+                                        array(
+                                            'label' => '加入收藏',
+                                            'data' => 'action=like&competitorId=' . $competior['urn_competitor'],
+                                        ),
                                     ),
-                                    array(
-                                        'label' => '加入收藏',
-                                        'data' => 'action=like&playerId=1',
-                                    ),
-                                ),
-                            );
-                            $data[] = array(
-                                'title' => 'Kerber',
-                                'text' => 'No.2',
-                                'imagePath' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/8762852b-5a86-414d-87ee-2efad80d4e64/tfkMNfJw.png?height=720',
-                                'options' => array(
-                                    array(
-                                        'label' => '查看資訊',
-                                        'data' => 'action=info&playerId=2',
-                                    ),
-                                    array(
-                                        'label' => '加入收藏',
-                                        'data' => 'action=like&playerId=2',
-                                    ),
-                                ),
-                            );
+                                );
+                            }
                             $targets = $this->lineBotService->buildCarouselTemplateMessageBuilder($data);
                             
                             foreach($targets as $target){
                                 $bot->replyMessage($replyToken, $target);
                             }
-                        }elseif(strpos(strtoupper($text), 'RECENT-') !== false){
-                            // 取得查詢ID
-                            $explodes = explode('-', $text);
-                            $competitorId = (isset($explodes[1])) ? $explodes[1] : '';
-                            // 取得該選手近期賽事資料
-                            $results = $this->sportradarTennisService->getCompetitorSummaries($competitorId);
-                            
-                            // 訊息內容
-                            $message = '';
-                            foreach($results as $result){
-                                $message .= date('Y-m-d', strtotime($result['start_time'])) . PHP_EOL;
-                                $message .= $result['event'] . PHP_EOL;
-                                $message .= $result['competitors'][0]['name'] . ' V.S ' . $result['competitors'][1]['name'] . PHP_EOL;
-                                $message .= $result['competitors'][0]['score'] . ' : ' . $result['competitors'][1]['score'] . PHP_EOL;
-                                if($result['result']){
-                                    $message .= $result['result'] . PHP_EOL;
-                                }
-                                $message .= '----------------------'. PHP_EOL;
-                            }
-                            $bot->replyText($replyToken, $message);
-                        }
-                        else{
+                        }else{
                             // 回覆用戶文字訊息
                             $bot->replyText($replyToken, 'Hello world!');
                         }
@@ -166,6 +136,30 @@ class LineBotController extends Controller
                         break;
                     case 'like':
                         
+                        break;
+                    case 'summary':
+                        // 取得查詢ID
+                        $competitorId = (isset($postbackData['competitorId'])) ? $postbackData['competitorId'] : '';
+                        $competior = Competitor::query()->where('urn_competitor','=', $competitorId)->first('name');
+                        if($competior){
+                            // 取得該選手近期賽事資料
+                            $results = $this->sportradarTennisService->getCompetitorSummaries($competitorId);
+                            
+                            // 訊息內容
+                            $message = $competior->name . PHP_EOL;
+                            $message .= '------------------------------'. PHP_EOL;
+                            foreach($results as $result){
+                                $message .= '時間：'. date('Y-m-d H:i:s', strtotime($result['start_time'])) . PHP_EOL;
+                                $message .= '賽事：'. $result['event'] . PHP_EOL;
+                                $message .= '選手：'. $result['competitors'][0]['name'] . ' V.S ' . $result['competitors'][1]['name'] . PHP_EOL;
+                                $message .= '比分：'. $result['competitors'][0]['score'] . ' : ' . $result['competitors'][1]['score'] . PHP_EOL;
+                                if($result['result']){
+                                    $message .= '結果：'. $result['result'] . PHP_EOL;
+                                }
+                                $message .= '------------------------------'. PHP_EOL;
+                            }
+                            $bot->replyText($replyToken, $message);
+                        }
                         break;
                     default:
                         break;
