@@ -30,7 +30,7 @@ class LineBotService
             );
         }, $data);
 
-        $tempChunk = array_chunk($imageCarouselColumnTemplateBuilders, 5);
+        $tempChunk = array_chunk($imageCarouselColumnTemplateBuilders, 10);
         return array_map(function ($data) use ($notificationText) {
             return new TemplateMessageBuilder(
                 $notificationText,
@@ -76,7 +76,7 @@ class LineBotService
             );
         }, $data);
 
-        $tempChunk = array_chunk($CarouselColumnTemplateBuilders, 5);
+        $tempChunk = array_chunk($CarouselColumnTemplateBuilders, 10);
         return array_map(function ($data) use ($notificationText) {
             return new TemplateMessageBuilder(
                 $notificationText,

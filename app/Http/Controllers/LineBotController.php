@@ -12,6 +12,7 @@ use App\Services\LineBotService;
 use App\Services\SportradarTennisService;
 use App\Models\Competitor;
 use App\Repositories\UserRepository;
+use App\Repositories\CompetitorRepository;
 
 class LineBotController extends Controller
 {
@@ -21,7 +22,7 @@ class LineBotController extends Controller
     private $lineBotService;
     private $userRepository;
 
-    public function __construct(LineBotService $lineBotService, SportradarTennisService $sportradarTennisService, UserRepository $userRepository)
+    public function __construct(LineBotService $lineBotService, SportradarTennisService $sportradarTennisService, UserRepository $userRepository, CompetitorRepository $competitorRepository)
     {
         $this->channel_access_token = env('LINE_BOT_CHANNEL_ACCESS_TOKEN');
         $this->channel_secret = env('LINE_BOT_CHANNEL_SECRET');
@@ -31,6 +32,7 @@ class LineBotController extends Controller
         $this->lineBotService = $lineBotService;
         $this->sportradarTennisService = $sportradarTennisService;
         $this->userRepository = $userRepository;
+        $this->competitorRepository = $competitorRepository;
     }
 
     /**
@@ -81,57 +83,73 @@ class LineBotController extends Controller
                     case 'text':
                         // 回覆模板訊息
                         if(strtoupper($text) == 'LIKE'){
-                            $data[] = array(
-                                'imagePath' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/62ecc4f9-a397-4c6f-9c8c-cea093c5ee9c/WzQOhOCP.png?height=720',
-                                'directUri' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/62ecc4f9-a397-4c6f-9c8c-cea093c5ee9c/WzQOhOCP.png?height=720',
-                                'label' => 'Halep'
-                            );
-                            $data[] = array(
-                                'imagePath' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/8762852b-5a86-414d-87ee-2efad80d4e64/tfkMNfJw.png?height=720',
-                                'directUri' => 'https://photoresources.wtatennis.com/photo-resources/2019/10/08/8762852b-5a86-414d-87ee-2efad80d4e64/tfkMNfJw.png?height=720',
-                                'label' => 'Kerber'
-                            );
-                            $data[] = array(
-                                'imagePath' => 'https://photoresources.wtatennis.com/photo-resources/2021/01/19/f5e01763-eee7-449f-999a-dcee1011c20e/Osaka_Hero-Smile.png?height=720',
-                                'directUri' => 'https://photoresources.wtatennis.com/photo-resources/2021/01/19/f5e01763-eee7-449f-999a-dcee1011c20e/Osaka_Hero-Smile.png?height=720',
-                                'label' => 'Osaka'
-                            );
-                            $targets = $this->lineBotService->buildImageCarouselColumnTemplateMessageBuilder($data);
-                            
-                            foreach($targets as $target){
-                                $bot->replyMessage($replyToken, $target);
+                            // 取得收藏清單
+                            $wishlist = $this->userRepository->getWishlist($userId);
+                            if($wishlist){
+                                // 組織輪播訊息內容
+                                foreach($wishlist as $competior){
+                                    $imagePath = ($competior->image) ? $competior->image : 'https://apt.co.zw/wp-content/uploads/2016/12/apt-avatar.jpg';
+                                    $data[] = array(
+                                        'title' => $competior->name,
+                                        'text' => 'No.' . $competior->rank,
+                                        'imagePath' => $imagePath,
+                                        'options' => array(
+                                            array(
+                                                'label' => '近期賽事',
+                                                'data' => 'action=summary&urnCompetitor=' . $competior->urn_competitor,
+                                            ),
+                                            array(
+                                                'label' => '取消收藏',
+                                                'data' => 'action=unlike&urnCompetitor=' . $competior->urn_competitor,
+                                            ),
+                                        ),
+                                    );
+                                }
+                                $targets = $this->lineBotService->buildCarouselTemplateMessageBuilder($data);
+                                foreach($targets as $target){
+                                    // 發送圖文輪播訊息
+                                    $bot->replyMessage($replyToken, $target);
+                                }
+                            }else{
+                                $bot->replyText($replyToken, '收藏清單尚無資料！');
                             }
+                            
                         } elseif(strtoupper($text) == 'WTA' || strtoupper($text) == 'ATP'){
-                            $type = (strtoupper($text) == 'WTA') ? 'women' : 'men';
-                            $competiors = Competitor::query()->where('gender','=', $type)->orderBy('rank', 'asc')->limit(10)->get();
-                            foreach($competiors as $competior){
-                                $imagePath = ($competior['image']) ? $competior['image'] : 'https://apt.co.zw/wp-content/uploads/2016/12/apt-avatar.jpg';
-                                $data[] = array(
-                                    'title' => $competior['name'],
-                                    'text' => 'No.'.$competior['rank'],
-                                    'imagePath' => $imagePath,
-                                    'options' => array(
-                                        array(
-                                            'label' => '近期賽事',
-                                            'data' => 'action=summary&competitorId=' . $competior['urn_competitor'],
+                            // 取得選手列表
+                            $gender = (strtoupper($text) == 'WTA') ? 'women' : 'men';
+                            $competiors = $this->competitorRepository->getCompetitors($filter = array('gender' => $gender), 20);
+                            // 組織輪播訊息內容
+                            if($competiors){
+                                foreach($competiors as $competior){
+                                    $imagePath = ($competior['image']) ? $competior['image'] : 'https://apt.co.zw/wp-content/uploads/2016/12/apt-avatar.jpg';
+                                    $data[] = array(
+                                        'title' => $competior['name'],
+                                        'text' => 'No.' . $competior['rank'],
+                                        'imagePath' => $imagePath,
+                                        'options' => array(
+                                            array(
+                                                'label' => '近期賽事',
+                                                'data' => 'action=summary&urnCompetitor=' . $competior['urn_competitor'],
+                                            ),
+                                            array(
+                                                'label' => '加入收藏',
+                                                'data' => 'action=like&urnCompetitor=' . $competior['urn_competitor'],
+                                            ),
                                         ),
-                                        array(
-                                            'label' => '加入收藏',
-                                            'data' => 'action=like&competitorId=' . $competior['urn_competitor'],
-                                        ),
-                                    ),
-                                );
-                            }
-                            $targets = $this->lineBotService->buildCarouselTemplateMessageBuilder($data);
-                            
-                            foreach($targets as $target){
-                                $bot->replyMessage($replyToken, $target);
+                                    );
+                                }
+                                $targets = $this->lineBotService->buildCarouselTemplateMessageBuilder($data);
+                                foreach($targets as $target){
+                                    // 發送圖文輪播訊息
+                                    $bot->replyMessage($replyToken, $target);
+                                }
+                            }else{
+                                $bot->replyText($replyToken, '暫無選手資料！');
                             }
                         }else{
                             // 回覆用戶文字訊息
-                            $bot->replyText($replyToken, 'Hello world!');
+                            $bot->replyText($replyToken, 'Let\'s Tennis!');
                         }
-
                         break;
 
                     default:
@@ -148,21 +166,35 @@ class LineBotController extends Controller
                 
                 // 辨別動作參數執行
                 switch ($postbackData['action']) {
-                    case 'info':
-                        // call api ..
-                        break;
                     case 'like':
-                        
+                        // 取得選手編號
+                        $urnCompetitor = (isset($postbackData['urnCompetitor'])) ? $postbackData['urnCompetitor'] : '';
+                        $res = $this->userRepository->addWishlist($userId, $urnCompetitor);
+                        if($res){
+                            $bot->replyText($replyToken, '成功加入收藏！');
+                        }else{
+                            $bot->replyText($replyToken, '操作失敗！');
+                        }
+                        break;
+                    case 'unlike':
+                        // 取得選手編號
+                        $urnCompetitor = (isset($postbackData['urnCompetitor'])) ? $postbackData['urnCompetitor'] : '';
+                        $res = $this->userRepository->removeWishlist($userId, $urnCompetitor);
+                        if($res){
+                            $bot->replyText($replyToken, '成功取消收藏！');
+                        }else{
+                            $bot->replyText($replyToken, '操作失敗！');
+                        }
                         break;
                     case 'summary':
-                        // 取得查詢ID
-                        $competitorId = (isset($postbackData['competitorId'])) ? $postbackData['competitorId'] : '';
-                        $competior = Competitor::query()->where('urn_competitor','=', $competitorId)->first('name');
+                        // 取得選手編號
+                        $urnCompetitor = (isset($postbackData['urnCompetitor'])) ? $postbackData['urnCompetitor'] : '';
+                        // 取得選手基本資料
+                        $competior = $this->competitorRepository->getCompetitorByUrn($urnCompetitor);
                         if($competior){
                             // 取得該選手近期賽事資料
-                            $results = $this->sportradarTennisService->getCompetitorSummaries($competitorId);
-                            
-                            // 訊息內容
+                            $results = $this->sportradarTennisService->getCompetitorSummaries($urnCompetitor);
+                            // 組織訊息內容
                             $message = $competior->name . PHP_EOL;
                             $message .= '------------------------------'. PHP_EOL;
                             foreach($results as $result){
@@ -175,14 +207,13 @@ class LineBotController extends Controller
                                 }
                                 $message .= '------------------------------'. PHP_EOL;
                             }
+                            // 回傳訊息
                             $bot->replyText($replyToken, $message);
                         }
                         break;
                     default:
                         break;
                 }
-
-                // $bot->replyText($replyToken, $postbackData);
             }
         }
     }

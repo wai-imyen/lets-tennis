@@ -44,22 +44,18 @@ class User extends Authenticatable
     ];
 
     /**
-     * @param string $name
-     * @param string $line_user_id
-     * 
-     * @return void
+     * 取得收藏的選手
      */
-    public function addLineUser($name, $line_user_id)
+    public function competitor()
     {
-        // 檢查用戶是否存在，若無則建立
-        $query = User::query()->where('line_user_id','=',$line_user_id);
-        if( ! $query->first()){
-            User::create(
-                array(
-                    'name' => $name,
-                    'line_user_id' => $line_user_id,
-                )
-            );
-        }
+        return $this->hasMany('App\Models\Competitor', 'user_id', 'id');
+    }
+
+    /**
+     * 取得收藏
+     */
+    public function wishlist()
+    {
+        return $this->belongsToMany('App\Models\Competitor', 'competitor_to_user', 'user_id', 'urn_competitor')->withTimestamps();
     }
 }
