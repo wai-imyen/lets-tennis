@@ -115,9 +115,16 @@ class LineBotController extends Controller
                             }
                             
                         } elseif(strtoupper($text) == 'WTA' || strtoupper($text) == 'ATP'){
+                            // 回應排名查詢快速訊息
+                            $this->lineBotService->rankQucikReply($replyToken, strtoupper($text));
+
+                        }elseif(strpos(strtoupper($text), 'WTA') !== false || strpos(strtoupper($text), 'ATP') !== false){
+                            // 解析取得的訊息內容
+                            $explode = explode('-', $text);
+                            $gender = (isset($explode[0]) && strtoupper($explode[0]) == 'WTA') ? 'women' : 'men';
+                            $rank = (isset($explode[1])) ? (int)$explode[1] : 1;
                             // 取得選手列表
-                            $gender = (strtoupper($text) == 'WTA') ? 'women' : 'men';
-                            $competiors = $this->competitorRepository->getCompetitors($filter = array('gender' => $gender), 20);
+                            $competiors = $this->competitorRepository->getCompetitors($filter = array('gender' => $gender), ($rank - 1));
                             // 組織輪播訊息內容
                             if($competiors){
                                 foreach($competiors as $competior){

@@ -28,7 +28,7 @@ class CompetitorRepository
      * 
      * @return object|null
      */
-    public function getCompetitors(array $filter, $limit = 10)
+    public function getCompetitors(array $filter, $start = 0, $limit = 10)
     {
         $query = Competitor::query();
 
@@ -36,6 +36,7 @@ class CompetitorRepository
             $query = $query->where('gender','=', $filter['gender']);
         }
         $query = $query->orderBy('rank', 'asc');
+        $query = $query->skip($start);
         $query = $query->limit($limit);
 
         return $query->get();

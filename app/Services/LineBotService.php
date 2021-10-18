@@ -114,4 +114,66 @@ class LineBotService
             $actionBuilders
         );
     }
+
+    /**
+	 * 回應排名查詢快速訊息
+	 *
+	 * @param	string	$replyToken
+     * @param	string	$type
+	 *
+	 * return void
+	 */
+	public function rankQucikReply($replyToken, $type = 'ATP')
+	{	
+
+        // 可查詢排名
+    	for($i=1; $i<=130; $i+=10){
+            $quick_reply_data[] = [
+                "label" => $i . '~' . ($i + 9),
+                "text" => $type . '-' . $i,
+            ];
+        }
+        
+        $quick_replies = [];
+		foreach ($quick_reply_data as $data) {
+			$items[] = array(
+				"type" => "action",
+				"action" => array(
+					'type' => 'message',
+					'label' => $data['label'],
+					'text' => $data['text'],
+				)
+			);
+		}
+	    $quick_replies['items'] = $items;
+
+		// Make payload
+		$payload = [
+		    'replyToken' => $replyToken,
+		    'messages' => [
+		        [
+		            'type' => 'text',
+		            'text' => '請選擇查詢名次',
+		            'quickReply' => $quick_replies,
+
+		        ]
+		    ]
+		];
+
+		// Send reply API
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, 'https://api.line.me/v2/bot/message/reply');
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+		curl_setopt($ch, CURLOPT_HTTPHEADER, [
+		    'Content-Type: application/json',
+		    'Authorization: Bearer ' . env('LINE_BOT_CHANNEL_ACCESS_TOKEN')
+		]);
+		$result = curl_exec($ch);
+		curl_close($ch);
+	}
 }
